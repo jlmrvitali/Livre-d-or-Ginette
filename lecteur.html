@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livre d'or Sainte-Geneviève – lecture</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500&display=swap">
+<style>
+:root{--green:#1c8d01;--ink:#000;--muted:#626262;--bg:#4a4a4a;--bar:#272727;color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);font-family:'Ubuntu',"Segoe UI",Arial,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--green);color:#fff;display:flex;align-items:center;gap:8px;
+  padding:8px max(10px,env(safe-area-inset-right,0px)) 8px max(10px,env(safe-area-inset-left,0px));flex-wrap:wrap}
+header a.back{color:#fff;text-decoration:none;font-weight:500;padding:8px 12px;border:1px solid rgba(255,255,255,.7);border-radius:6px;white-space:nowrap}
+header .t{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav{display:flex;align-items:center;gap:6px}
+nav button{font:inherit;font-weight:500;background:#fff;color:var(--green);border:0;border-radius:6px;padding:8px 14px;min-width:44px;cursor:pointer}
+nav button:disabled{opacity:.45;cursor:default}
+nav .num{color:#fff;font-size:14px;min-width:88px;text-align:center;font-variant-numeric:tabular-nums}
+#stage{padding:12px 0 calc(24px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center}
+canvas{background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.4);max-width:100%;height:auto;display:block}
+#msg{color:#fff;text-align:center;padding:40px 16px;font-size:16px}
+.full{display:block;text-align:center;padding:0 16px 24px}
+.full a{color:#ddd;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="./" id="back">← Sommaire</a>
+  <span class="t">Livre d’or · Tome II</span>
+  <nav aria-label="Pages">
+    <button id="prev" aria-label="Page précédente">‹</button>
+    <span class="num" id="num">…</span>
+    <button id="next" aria-label="Page suivante">›</button>
+  </nav>
+</header>
+<div id="stage"><div id="msg">Chargement de la page…</div><canvas id="cv" hidden></canvas></div>
+<div class="full"><a id="full" href="#">Ouvrir le PDF complet</a></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+// Pages « globales » 1..392 du livre numérisé ; le fichier est coupé en deux (limite GitHub de 25 Mo).
+const SPLIT=196, TOTAL=392, OFFSET=12;
+const FILES=["livre-dor-1924-1954-partie1.pdf","livre-dor-1924-1954-partie2.pdf"];
+const ROMAN=["","","VII","VIII","IX","X","XI","XII","XIII","XIV","XV","XVI"];
+pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const docs={}; let page=1, rendering=null;
+const qs=new URLSearchParams(location.search);
+page=Math.min(TOTAL,Math.max(1,parseInt(qs.get("p"),10)||13));
+const label=p=>p<=OFFSET?(p<=2?"couverture":"p. "+ROMAN[p-1]):"p. "+(p-OFFSET);
+function where(p){return p<=SPLIT?{f:0,n:p}:{f:1,n:p-SPLIT};}
+async function getDoc(f){
+  if(!docs[f]) docs[f]=pdfjsLib.getDocument({url:FILES[f],rangeChunkSize:262144}).promise;
+  return docs[f];
+}
+const cv=document.getElementById("cv"), msg=document.getElementById("msg");
+async function show(p){
+  page=p; const w=where(p);
+  document.getElementById("num").textContent=label(p);
+  document.getElementById("prev").disabled=p<=1; document.getElementById("next").disabled=p>=TOTAL;
+  document.getElementById("full").href=FILES[w.f]+"#page="+w.n;
+  history.replaceState(null,"","?p="+p);
+  const token={}; rendering=token;
+  try{
+    const doc=await getDoc(w.f); const pg=await doc.getPage(w.n);
+    if(rendering!==token) return;
+    const base=pg.getViewport({scale:1});
+    const cssW=Math.min(document.documentElement.clientWidth-16,900);
+    const scale=cssW/base.width, dpr=Math.min(window.devicePixelRatio||1,3);
+    const vp=pg.getViewport({scale:scale*dpr});
+    const off=document.createElement("canvas"); off.width=vp.width; off.height=vp.height;
+    await pg.render({canvasContext:off.getContext("2d"),viewport:vp}).promise;
+    if(rendering!==token) return;
+    cv.width=off.width; cv.height=off.height; cv.getContext("2d").drawImage(off,0,0);
+    cv.style.width=cssW+"px"; cv.hidden=false; msg.hidden=true;
+    window.scrollTo(0,0);
+    // pré-chargement de la page suivante
+    if(p<TOTAL){const n=where(p+1); getDoc(n.f).then(d=>d.getPage(n.n)).catch(()=>{});}
+  }catch(e){ msg.hidden=false; cv.hidden=true; msg.textContent="Impossible d’afficher la page. Vérifiez la connexion, puis réessayez."; }
+}
+document.getElementById("prev").onclick=()=>page>1&&show(page-1);
+document.getElementById("next").onclick=()=>page<TOTAL&&show(page+1);
+document.addEventListener("keydown",e=>{if(e.key==="ArrowLeft")document.getElementById("prev").click(); if(e.key==="ArrowRight")document.getElementById("next").click();});
+// balayage gauche/droite sur mobile
+let x0=null,y0=null;
+cv.addEventListener("touchstart",e=>{if(e.touches.length===1){x0=e.touches[0].clientX;y0=e.touches[0].clientY;}},{passive:true});
+cv.addEventListener("touchend",e=>{if(x0===null)return;const dx=e.changedTouches[0].clientX-x0,dy=e.changedTouches[0].clientY-y0;
+  if(Math.abs(dx)>60&&Math.abs(dx)>2*Math.abs(dy)){dx<0?document.getElementById("next").click():document.getElementById("prev").click();} x0=null;},{passive:true});
+// « Sommaire » : revenir en arrière si l'on vient du sommaire, pour retrouver sa position
+document.getElementById("back").addEventListener("click",e=>{ if(document.referrer && new URL(document.referrer).pathname.replace(/index\.html$/,"")===location.pathname.replace(/lecteur\.html$/,"")){e.preventDefault();history.back();}});
+let rt; window.addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>show(page),250);});
+show(page);
+</script>
+</body>
+</html>
