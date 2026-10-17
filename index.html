@@ -86,7 +86,7 @@ footer .bottom .inner{padding-block:10px}
 <main class="inner gutter" id="main-wrap">
   <div class="intro">
     <h1>Livre d’or de l’École Sainte-Geneviève, 1924-1954</h1>
-    <p>Sommaire des notices biographiques. Cliquez sur un nom pour ouvrir le livre directement à la bonne page.</p>
+    <p>Sommaire des notices biographiques. Cliquez sur un nom pour ouvrir le livre directement à la bonne page ; la flèche « Retour » du navigateur ramène au sommaire.</p>
   </div>
   <div class="tools">
     <input id="q" type="search" placeholder="Rechercher un nom (ex. Laurent, Penfentenyo)…" autocomplete="off" aria-label="Rechercher un nom">
@@ -126,7 +126,7 @@ const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
 function entry([n,lab,pdf]){
   const m=n.match(/^(.*?)( \(.*\))$/);
   const name=m?`<span class="sur">${m[1]}</span>${m[2]}`:n;
-  return `<li><a href="${href(pdf)}" target="_blank" rel="noopener"><span class="n">${name}</span><span class="dots"></span><span class="p">${lab}</span></a></li>`;
+  return `<li><a href="${href(pdf)}"><span class="n">${name}</span><span class="dots"></span><span class="p">${lab}</span></a></li>`;
 }
 function render(q){
   const nq=norm(q.trim()); let total=0, html="";
@@ -134,7 +134,7 @@ function render(q){
     const items=nq?S.items.filter(it=>norm(it[0]).includes(nq)):S.items;
     if(nq && !items.length) continue;
     total+=S.s!==undefined?items.length:0;
-    const head=S.p?`<a href="${href(S.p+OFFSET)}" target="_blank" rel="noopener">${S.t}</a>`:S.t;
+    const head=S.p?`<a href="${href(S.p+OFFSET)}">${S.t}</a>`:S.t;
     const meta=S.s!==undefined?`${items.length} notice${items.length>1?"s":""}`:(S.p?`p. ${S.p}`:"");
     html+=`<section id="${S.id}"><h2>${head}<small>${meta}</small></h2>${items.length?`<ul>${items.map(entry).join("")}</ul>`:""}</section>`;
   }
